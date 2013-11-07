@@ -4,64 +4,146 @@
 	<head>
 		<meta charset="utf-8" />
 		<title>Pixel Farm</title>
-		<style type="text/css">
-  	body {
-		  margin: 0; padding: 0;
-  	}
-  	canvas {
-		  /*border: 2px solid #ccc;*/
-		  margin: 10px;
-  	}
-		</style>
 		<script src="on.js" type="text/javascript"></script>
+		<script src="raf-caf.js" type="text/javascript"></script>
 		<script src="PixelFarm.js" type="text/javascript"></script>
 	</head>
 	<body>
-        <img id="source" src="google2.jpg" /><br />
-		<canvas id="buffer" width="1" height="1" style="width: 100px; height: 100px; background: black;"></canvas>
-		<canvas id="destination" width="100" height="100"></canvas>
 		<script type="text/javascript">
-  	on(window, "load", function () {
-  		var source = document.getElementById("source");
-  		var buffer = document.getElementById("buffer"), bufferCtx = buffer.getContext("2d");
-  		var dest = document.getElementById("destination"), destCtx = dest.getContext("2d");
-  		dest.width = source.width; dest.height = source.height;
-  		dest.style.height = "100px";
+  	(function () {
+  		var canvas = document.createElement("CANVAS");
+  		if (!canvas.getContext || !canvas.getContext("2d")) { throw "Browser does not support 2D Canvas."; }
+  	})();
 
-  		buffer.width = buffer.height = 100;
-  		bufferCtx.strokeStyle = "white";
-  		bufferCtx.moveTo(50.5, 0);
-  		bufferCtx.lineTo(50.5, 100);
-  		bufferCtx.stroke();
-  		//bufferCtx.translate(0.4, 0.4);
-  		//bufferCtx.drawImage(source, 0, 0);
+  	var averageColour = (function (image) {
+  		var colour = { r: 0, g: 0, b: 0, a: 0, string: "" };
 
-  		on(source, "mousemove", function (e) {
-  			bufferCtx.clearRect(0, 0, 1, 1);
+  		var i, l;
+  		return function averageColour(imageData, x, y, width, height) {
+  			var data = imageData.data;
 
-  			bufferCtx.save();
-  			var scale = Math.min(100 / source.width, 100 / source.height); document.title = (scale);
-  			//bufferCtx.scale(scale, scale);
+  			var size = width * height;
+  			var dataValueWidth = imageData.width * 4;
+  			var valueWidth = width * 4;
+  			var left = x * 4,
+  	            top = y * 4,
+  	            right = (x + width) * 4,
+  	            last = dataValueWidth * (y + height);
 
-  			//bufferCtx.scale(1 / source.width, 1 / source.height);
-  			scale = 2;
-  			//bufferCtx.scale(scale, scale);
-  			//bufferCtx.translate(-e.pageX, -e.pageY);
-  			bufferCtx.drawImage(source, 0, 0);
-  			bufferCtx.restore();
+  			i = (top * imageData.width) + left;
+  			var f = 4000, c = 0;
+  			while (--f >= 0) {
+  				c++;
 
-  			//bufferCtx.drawImage(source,
-  			//  e.pageX - 50, e.pageY - 50, 100, 100,
-  			//  0, 0, 1, 1
-  			//);
+  				colour.r += data[i++];
+  				colour.g += data[i++];
+  				colour.b += data[i++];
+  				colour.a += data[i++];
 
-  			destCtx.drawImage(source, 0, 0);
-  			destCtx.drawImage(buffer,
-  	            0, 0, 1, 1,
-  	            e.pageX - 50, e.pageY - 50, 100, 100
-  	        );
-  		});
+  				if (i > last) { break; }
+  				if (i % dataValueWidth > right) { i += dataValueWidth; }
+  			}
+
+  			colour.r /= c;
+  			colour.g /= c;
+  			colour.b /= c;
+  			colour.a /= c;
+
+  			colour.string = "rgba(" +
+  	            Math.round(colour.r) + ", " +
+  	            Math.round(colour.g) + ", " +
+  	            Math.round(colour.b) + ", " +
+  	            (colour.a / 255) +
+  	        ")";
+
+  			colour.r = colour.g = colour.b = colour.a = 0;
+
+  			return colour.string;
+  		};
+  	})();
+
+  	var displayCanvas = document.createElement("CANVAS"),
+  	    display = displayCanvas.getContext("2d");
+
+  	var image = new Image(), imageData;
+  	on(image, "load", function () {
+  		displayCanvas.width = image.width;
+  		displayCanvas.height = image.height;
+  		display.drawImage(image, 0, 0);
+
+  		imageData = display.getImageData(0, 0, image.width, image.height);
+  		//console.log(averageColour(imageData, 0, 0, 3, 3));
+
+  		init();
   	});
+  	image.src = "google2.jpg";
+
+  	var padding = 25, padding2 = padding * 2;
+  	var showReticle = false;
+  	var point = {
+  		x: 0, y: 0,
+  		set: function (e) {
+  			this.x = Math.min(Math.max(padding, e.pageX - displayCanvas.topLeft.x), image.width - padding);
+  			this.y = Math.min(Math.max(padding, e.pageY - displayCanvas.topLeft.y), image.height - padding);
+  		}
+  	};
+
+  	function init() {
+  		displayCanvas.width = image.width + padding2;
+  		displayCanvas.height = image.height + padding2;
+
+  		render();
+  		display.lineWidth = 0.5;
+
+  		document.body.appendChild(displayCanvas);
+  		displayCanvas.topLeft = { x: displayCanvas.offsetLeft, y: displayCanvas.offsetTop };
+
+  		on(displayCanvas, "mouseover", function (e) {
+  			showReticle = true;
+  			point.set(e);
+  			render.schedule();
+  		});
+  		on(displayCanvas, "mousemove", function (e) {
+  			showReticle = true;
+  			point.set(e);
+  			render.schedule();
+  		});
+  		on(displayCanvas, "mouseout", function () {
+  			showReticle = false;
+  			render.schedule();
+  		});
+  	}
+
+  	var render = (function () {
+  		var id = null;
+
+  		function render() {
+  			display.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+
+  			display.drawImage(image, padding, padding);
+
+  			if (showReticle) {
+  				display.beginPath();
+  				var colour = averageColour(imageData, point.x - padding, point.y - padding, padding2, padding2);
+  				display.fillStyle = colour;
+  				console.log(colour, display.fillStyle);
+  				display.rect(point.x - padding, point.y - padding, padding2, padding2);
+  				display.stroke(); display.fill();
+  			}
+  			else {
+  				console.log("no reticle");
+  			}
+
+  			id = null;
+  		}
+  		render.schedule = function () {
+  			if (id === null) {
+  				id = requestAnimationFrame(render);
+  			}
+  		};
+
+  		return render;
+  	})();
 		</script>
 	</body>
 </html>
