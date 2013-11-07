@@ -61,74 +61,160 @@
   		};
   	})();
 
-  	var displayCanvas = document.createElement("CANVAS"),
-  	    display = displayCanvas.getContext("2d");
+  	var display = (function () {
+  		var canvas = document.createElement("CANVAS");
+  		canvas.style.boxShadow = "0 0 5px hsl(0, 0%, 50%)";
 
-  	var image = new Image(), imageData;
+  		var display = canvas.getContext("2d");
+  		display.canvas = canvas;
 
-  	var picker = (function () {
-  		var picker = document.body.appendChild(document.createElement("SPAN"));
-  		var size = picker.size = 20;
-
-  		var centre = ((size + 2) / 2);
-  		picker.style.cssText = "" +
-  	        "position:absolute;" +
-  	        "-webkit-transform:translate(-" + centre + "px, -" + centre + "px);" +
-  	        "width:" + size + "px; height:" + size + "px;" +
-  	        "border:1px solid black;" +
-  	    "";
-
-  		var left, maxLeft,
-  	        top, maxTop;
-
-  		picker.loaded = function () {
-  			maxLeft = image.width - size;
-  			maxTop = image.height - size;
+  		display.init = function () {
+  			canvas.width = canvas.width;
+  			document.body.appendChild(canvas);
+  			canvas.offset = { x: canvas.offsetLeft, y: canvas.offsetTop };
   		};
-  		picker.move = function (x, y) {
-  			var size = this.size;
 
-  			left = x - (size / 2);
-  			left = (left < 0) ? 0 :
-  	            (left > maxLeft) ? maxLeft :
-  	            left | 0;
-
-  			top = y - (size / 2);
-  			top = (top < 0) ? 0 :
-  	            (top > maxTop) ? maxTop :
-  	            top | 0;
-
-  			this.style.left = (image.offset.x + left + (size / 2)) + "px";
-  			this.style.top = (image.offset.y + top + (size / 2)) + "px";
-
-  			document.body.style.backgroundColor = averageColour(image.data, left, top, size, size);
-  		}
-
-  		return picker;
+  		return display;
   	})();
 
-  	on(image, "load", function () {
-  		document.body.appendChild(image);
+  	var pointer = {
+  		from: { x: 0, y: 0 },
+  		to: { x: 0, y: 0 },
 
-  		displayCanvas.width = image.width;
-  		displayCanvas.height = image.height;
+  		selecting: false,
+
+  		init: function () {
+  			var x, y;
+  			var offset = display.canvas.offset;
+  			var from = pointer.from,
+  	            to = pointer.to;
+
+  			on(display.canvas, "mousedown", function (e) {
+  				from.x = to.x = e.pageX - offset.x;
+  				from.y = to.y = e.pageY - offset.y;
+  				//console.log("down: ", from);
+
+  				pointer.selecting = true;
+
+  				pointer.updated = new Date();
+  				render();
+
+  				on(window, "mousemove", move);
+  			});
+  			on(window, "mouseup", function (e) {
+  				to.x = e.pageX - offset.x;
+  				to.y = e.pageY - offset.y;
+  				//console.log("up: ", to);
+
+  				pointer.selecting = false;
+
+  				pointer.updated = new Date();
+
+  				on.remove(window, "mousemove", move);
+  			});
+
+  			function move(e) {
+  				to.x = e.pageX - offset.x;
+  				to.y = e.pageY - offset.y;
+  				//console.log("move: ", to);
+
+  				pointer.updated = new Date();
+  			}
+  		}
+  	};
+
+  	var render = (function () {
+  		var id = null;
+
+  		function render() {
+  			if (!id) { id = requestAnimationFrame(renderFrame); }
+  		}
+
+  		var from = pointer.from,
+  	        to = pointer.to;
+
+  		var origin = { x: 0, y: 0 },
+  	        size = { x: 0, y: 0 };
+
+  		var buffer = (function () {
+  			var canvas = document.createElement("CANVAS");
+  			canvas.width = canvas.height = 0;
+  			canvas.style.width = "100px";
+  			document.body.appendChild(canvas);
+
+  			var buffer = canvas.getContext("2d");
+  			buffer.canvas = canvas;
+
+  			return buffer;
+  		})();
+
+  		var rendered = null;
+  		function renderFrame() {
+  			if (from.x < to.x) {
+  				origin.x = from.x;
+  				size.x = to.x - from.x;
+  			}
+  			else {
+  				origin.x = to.x;
+  				size.x = from.x - to.x;
+  			}
+
+  			if (from.y < to.y) {
+  				origin.y = from.y;
+  				size.y = to.y - from.y;
+  			}
+  			else {
+  				origin.y = to.y;
+  				size.y = from.y - to.y;
+  			}
+
+  			if (pointer.selecting) {
+  				if (buffer.canvas.width === 0) {
+  					console.log("buffer");
+  					buffer.canvas.width = display.canvas.width;
+  					buffer.canvas.height = display.canvas.height;
+  					buffer.drawImage(display.canvas, 0, 0);
+  				}
+
+  				if (rendered !== pointer.updated) {
+  					display.canvas.width = display.canvas.width; // clear
+  					console.log("clear");
+
+  					display.drawImage(buffer.canvas, 0, 0);
+  					display.strokeRect(origin.x + 0.5, origin.y + 0.5, size.x, size.y);
+
+  					rendered = pointer.updated;
+  				}
+
+  				id = requestAnimationFrame(renderFrame);
+  			}
+  			else {
+  				display.canvas.width = display.canvas.width; // clear
+  				display.drawImage(buffer.canvas, 0, 0);
+  				display.fillStyle = averageColour(image.data, origin.x, origin.y, size.x, size.y);
+  				display.fillRect(origin.x, origin.y, size.x, size.y);
+
+  				buffer.canvas.width = buffer.canvas.height = 0;
+
+  				id = null;
+  			}
+  		}
+
+  		return render;
+  	})();
+
+  	var image = new Image();
+  	on(image, "load", function () {
+  		display.canvas.width = image.width;
+  		display.canvas.height = image.height;
   		display.drawImage(image, 0, 0);
 
   		image.data = display.getImageData(0, 0, image.width, image.height);
-  		image.offset = { x: image.offsetLeft, y: image.offsetTop };
 
-  		picker.loaded();
-  		picker.move(Infinity, Infinity);
+  		display.init();
+  		pointer.init();
   	});
-  	image.src = "google2.jpg";
-
-  	on(window, "mousemove", function (e) {
-  		picker.move(e.pageX - image.offset.x, e.pageY - image.offset.y);
-  	});
-
-  	function pickColour(colour) {
-  		document.body.style.backgroundColor = colour;
-  	}
+  	image.src = "google.jpg";
 		</script>
 	</body>
 </html>
