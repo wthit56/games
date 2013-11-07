@@ -25,26 +25,24 @@
   			var size = width * height;
   			var dataValueWidth = imageData.width * 4;
   			var valueWidth = width * 4;
-  			var left = x * 4,
-  	            top = y * 4,
-  	            right = (x + width) * 4,
+  			var right = (x + width) * 4,
   	            last = dataValueWidth * (y + height);
 
-  			i = (top * imageData.width) + left;
-  			var pixels = 0;
-  			while (true) {
-  				pixels++;
-
+  			i = (y * dataValueWidth) + (x * 4);
+  			while (i < last) {
   				colour.r += data[i++];
   				colour.g += data[i++];
   				colour.b += data[i++];
   				colour.a += data[i++];
 
-  				if (i > last) { break; }
-  				if (i % dataValueWidth > right) { i += dataValueWidth - valueWidth; }
+  				x = (i % dataValueWidth);
+  				if (
+  	                ((i !== 0) && (x === 0)) ||
+  	                (x >= right)
+  	            ) { i += dataValueWidth - valueWidth; }
   			}
 
-  			pixles = width * height;
+  			var pixels = width * height;
   			colour.r /= pixels;
   			colour.g /= pixels;
   			colour.b /= pixels;
@@ -69,9 +67,10 @@
   	var image = new Image(), imageData;
 
   	var picker = (function () {
-  		var size = 20, centre = ((size + 2) / 2);
-
   		var picker = document.body.appendChild(document.createElement("SPAN"));
+  		var size = picker.size = 20;
+
+  		var centre = ((size + 2) / 2);
   		picker.style.cssText = "" +
   	        "position:absolute;" +
   	        "-webkit-transform:translate(-" + centre + "px, -" + centre + "px);" +
@@ -87,6 +86,8 @@
   			maxTop = image.height - size;
   		};
   		picker.move = function (x, y) {
+  			var size = this.size;
+
   			left = x - (size / 2);
   			left = (left < 0) ? 0 :
   	            (left > maxLeft) ? maxLeft :
@@ -114,11 +115,10 @@
   		display.drawImage(image, 0, 0);
 
   		image.data = display.getImageData(0, 0, image.width, image.height);
-  		pickColour(averageColour(image.data, 20, 20, 3, 3));
-
   		image.offset = { x: image.offsetLeft, y: image.offsetTop };
 
   		picker.loaded();
+  		picker.move(Infinity, Infinity);
   	});
   	image.src = "google2.jpg";
 
