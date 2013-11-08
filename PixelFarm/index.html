@@ -90,9 +90,10 @@
   	            to = pointer.to;
 
   			on(display.canvas, "mousedown", function (e) {
+  				if (e.preventDefault) { e.preventDefault(); }
+
   				from.x = to.x = e.pageX - offset.x;
   				from.y = to.y = e.pageY - offset.y;
-  				//console.log("down: ", from);
 
   				pointer.selecting = true;
 
@@ -102,9 +103,10 @@
   				on(window, "mousemove", move);
   			});
   			on(window, "mouseup", function (e) {
+  				if (e.preventDefault) { e.preventDefault(); }
+
   				to.x = e.pageX - offset.x;
   				to.y = e.pageY - offset.y;
-  				//console.log("up: ", to);
 
   				pointer.selecting = false;
 
@@ -114,9 +116,10 @@
   			});
 
   			function move(e) {
+  				if (e.preventDefault) { e.preventDefault(); }
+
   				to.x = e.pageX - offset.x;
   				to.y = e.pageY - offset.y;
-  				//console.log("move: ", to);
 
   				pointer.updated = new Date();
   			}
@@ -139,8 +142,6 @@
   		var buffer = (function () {
   			var canvas = document.createElement("CANVAS");
   			canvas.width = canvas.height = 0;
-  			canvas.style.width = "100px";
-  			document.body.appendChild(canvas);
 
   			var buffer = canvas.getContext("2d");
   			buffer.canvas = canvas;
@@ -152,25 +153,41 @@
   		function renderFrame() {
   			if (from.x < to.x) {
   				origin.x = from.x;
-  				size.x = to.x - from.x;
+  				size.x = to.x;
   			}
   			else {
   				origin.x = to.x;
-  				size.x = from.x - to.x;
+  				size.x = from.x;
   			}
 
   			if (from.y < to.y) {
   				origin.y = from.y;
-  				size.y = to.y - from.y;
+  				size.y = to.y;
   			}
   			else {
   				origin.y = to.y;
-  				size.y = from.y - to.y;
+  				size.y = from.y;
   			}
+
+  			origin.x = (origin.x < 0) ? 0 :
+  	            (origin.x > image.width) ? image.width :
+  	            origin.x;
+  			size.x = (size.x < 0) ? 0 :
+  	            (size.x > image.width) ? image.width :
+  	            size.x;
+
+  			origin.y = (origin.y < 0) ? 0 :
+  	            (origin.y > image.height) ? image.height :
+  	            origin.y;
+  			size.y = (size.y < 0) ? 0 :
+  	            (size.y > image.height) ? image.height :
+  	            size.y;
+
+  			size.x -= origin.x;
+  			size.y -= origin.y;
 
   			if (pointer.selecting) {
   				if (buffer.canvas.width === 0) {
-  					console.log("buffer");
   					buffer.canvas.width = display.canvas.width;
   					buffer.canvas.height = display.canvas.height;
   					buffer.drawImage(display.canvas, 0, 0);
@@ -178,10 +195,9 @@
 
   				if (rendered !== pointer.updated) {
   					display.canvas.width = display.canvas.width; // clear
-  					console.log("clear");
 
   					display.drawImage(buffer.canvas, 0, 0);
-  					display.strokeRect(origin.x + 0.5, origin.y + 0.5, size.x, size.y);
+  					display.strokeRect(origin.x + 0.5, origin.y + 0.5, size.x - 1, size.y - 1);
 
   					rendered = pointer.updated;
   				}
